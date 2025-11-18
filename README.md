@@ -14,6 +14,7 @@ The ZMK Text Expander is a powerful feature for your ZMK-powered keyboard. It le
 * **Flexible Trigger Behavior:** Set a global default for whether to "replay" the trigger key (like spacebar), and override it for specific expansions.
 * **Easy Setup:** Add your expansions directly in your keyboard's configuration files.
 * **Full Unicode Support:** Easily define expansions with any Unicode character, like `λ`, `€`, or `°`.
+* **Locale Support:** Works with non-US layouts (French AZERTY, German QWERTZ) so your expansions type correctly on any machine.
 
 ## How to Use It (The Basics)
 
@@ -35,6 +36,7 @@ The ZMK Text Expander is a powerful feature for your ZMK-powered keyboard. It le
 4.  **Clearing Your Typed Short Code:**
     * Pressing a non-alphanumeric key that is *not* an auto-expand trigger will clear the current short code buffer.
     * `Backspace` will delete the last character you typed into your short code.
+    * You can configure specific `ignore-keycodes` (like Shift or Arrows) that allow you to navigate or modify your typing without breaking the expansion sequence.
 
 ## Setting Up Your Expansions
 
@@ -81,6 +83,7 @@ Once your Zephyr environment includes these fixes (by using one of the options a
             auto-expand-keycodes = <SPACE ENTER TAB>;
             undo-keycodes = <BSPC>;
             reset-keycodes = <ESC>;
+            ignore-keycodes = <LSHIFT RSHIFT LEFT RIGHT UP DOWN>; // Don't reset buffer on these keys
             disable-preserve-trigger; // Global default: DON'T replay the trigger key
 
             // --- EXPANSION DEFINITIONS ---
@@ -112,26 +115,103 @@ Once your Zephyr environment includes these fixes (by using one of the options a
         };
     };
 };
-```
+````
 
 **Important:**
 
-* `short-code`: Keep these to lowercase letters (a-z) and numbers (0-9). Using other characters may lead to unexpected behavior.
-* The `&txt_exp` in your `keymap` should match the name you gave your text expander setup (e.g., `txt_exp` in `&txt_exp` corresponds to `txt_exp: text_expander`).
+  * `short-code`: Keep these to lowercase letters (a-z), numbers (0-9), and basic symbols like `[`, `]`, `-`, `=`, `;`, `'`, `,`, `.`, `/`.
+  * The `&txt_exp` in your `keymap` should match the name you gave your text expander setup (e.g., `txt_exp` in `&txt_exp` corresponds to `txt_exp: text_expander`).
 
 ## Fine-Tuning (Optional Kconfig Settings)
 
 You can fine-tune the text expander's behavior by adding the following options to your `config/<your_keyboard_name>.conf` file. You must first enable the module with `CONFIG_ZMK_TEXT_EXPANDER=y`.
 
-* **`CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_...`**: Sets the default operating system for Unicode input. You can set one of these to `y` in your `.conf` file. They are mutually exclusive with a priority of Linux > macOS > Windows. For example, if you set both the Linux and macOS options to `y`, the Linux option will be used. If none are set, the default is Windows.
-    * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_LINUX=y`
-    * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_MACOS=y`
-    * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_WINDOWS=y`
-* `CONFIG_ZMK_TEXT_EXPANDER_TYPING_DELAY`: The delay in milliseconds between each typed character during expansion (Default: 10).
-* `CONFIG_ZMK_TEXT_EXPANDER_EVENT_QUEUE_SIZE`: Sets the size of the internal buffer for key events (Default: 16). If you are a very fast typist and see `"Failed to queue key event"` warnings in the logs, you may need to increase this value.
-* `CONFIG_ZMK_TEXT_EXPANDER_AGGRESSIVE_RESET_MODE`: If enabled, the current short code is reset immediately if it doesn't match a valid prefix of any stored expansion. This gives you instant feedback on typos.
-* `CONFIG_ZMK_TEXT_EXPANDER_RESTART_AFTER_RESET_WITH_TRIGGER_CHAR`: Used with the aggressive mode. If the short code is reset, the character that caused the reset will automatically start a new short code. Without this, the invalid character is simply consumed.
-* `CONFIG_ZMK_TEXT_EXPANDER_ULTRA_LOW_MEMORY`: A special mode that reduces memory usage by removing the large character-to-keycode lookup table. This mode still supports basic letters, numbers, and a wide range of common special characters, making it a practical choice for memory-constrained devices.
+  * **`CONFIG_ZMK_TEXT_EXPANDER_HOST_LAYOUT`**: Selects the keyboard layout that matches your host operating system's input language settings. This ensures the module sends the correct keycodes for your language (e.g., typing 'a' correctly on a French AZERTY keyboard).
+      * `CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_US=y` (Default)
+      * `CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_FRENCH=y` (AZERTY)
+      * `CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_GERMAN=y` (QWERTZ)
+  * **`CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_...`**: Sets the default operating system for Unicode input. You can set one of these to `y` in your `.conf` file. They are mutually exclusive with a priority of Linux \> macOS \> Windows. For example, if you set both the Linux and macOS options to `y`, the Linux option will be used. If none are set, the default is Windows.
+      * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_LINUX=y`
+      * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_MACOS=y`
+      * `CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_WINDOWS=y`
+  * `CONFIG_ZMK_TEXT_EXPANDER_TYPING_DELAY`: The delay in milliseconds between each typed character during expansion (Default: 10). Note that the engine adds a small random jitter to this delay to simulate natural typing.
+  * `CONFIG_ZMK_TEXT_EXPANDER_EVENT_QUEUE_SIZE`: Sets the size of the internal buffer for key events (Default: 16). If you are a very fast typist and see `"Failed to queue key event"` warnings in the logs, you may need to increase this value.
+  * `CONFIG_ZMK_TEXT_EXPANDER_AGGRESSIVE_RESET_MODE`: If enabled, the current short code is reset immediately if it doesn't match a valid prefix of any stored expansion. This gives you instant feedback on typos.
+  * `CONFIG_ZMK_TEXT_EXPANDER_RESTART_AFTER_RESET_WITH_TRIGGER_CHAR`: Used with the aggressive mode. If the short code is reset, the character that caused the reset will automatically start a new short code. Without this, the invalid character is simply consumed.
+
+## Troubleshooting
+
+### Build Issues
+
+**Problem:** Build fails with errors related to escape sequences (`\n`, `\t`, `\"`, `\\`) in `expanded-text`.
+
+**Solution:** Your Zephyr environment needs patches for Device Tree string parsing. Use one of these options:
+1. Use the patched Zephyr branch: `https://github.com/minhe7735/zephyr/tree/text-expander`
+2. Use the patched ZMK branch: `https://github.com/minhe7735/zmk/tree/text-expander`
+3. Ensure your Zephyr version includes commits `c82799b` and `6edefd8`
+
+**Problem:** `Failed to queue key event` warnings in logs.
+
+**Solution:** Increase the event queue size:
+```
+CONFIG_ZMK_TEXT_EXPANDER_EVENT_QUEUE_SIZE=32
+```
+
+### Expansion Issues
+
+**Problem:** Expansions don't trigger or type incorrect characters.
+
+**Solution:**
+- Verify your `auto-expand-keycodes` include the trigger keys (e.g., `<SPACE ENTER TAB>`)
+- Check that your host layout matches: set `CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_US`, `_FRENCH`, or `_GERMAN`
+- Enable debug logging to see what's happening:
+  ```
+  CONFIG_LOG_MODE_MINIMAL=n
+  CONFIG_TEXT_EXPANDER_LOG_LEVEL_DBG=y
+  ```
+
+**Problem:** Unicode characters don't work or appear as question marks.
+
+**Solution:**
+- Add the OS command at the start of your expansion: `{{cmd:win}}`, `{{cmd:mac}}`, or `{{cmd:linux}}`
+- Or set a default OS in your `.conf` file:
+  ```
+  CONFIG_ZMK_TEXT_EXPANDER_DEFAULT_OS_LINUX=y
+  ```
+- Verify your OS has the correct Unicode input method enabled (Alt+numpad for Windows, Opt+hex for macOS, Ctrl+Shift+U for Linux)
+
+### Performance Tuning
+
+**Problem:** Typing feels too slow or too fast.
+
+**Solution:** Adjust the typing delay (default is 10ms):
+```
+CONFIG_ZMK_TEXT_EXPANDER_TYPING_DELAY=15  # Slower
+CONFIG_ZMK_TEXT_EXPANDER_TYPING_DELAY=5   # Faster
+```
+
+**Problem:** Undo doesn't work as expected.
+
+**Solution:**
+- Verify `undo-keycodes` is defined in your behavior (e.g., `undo-keycodes = <BSPC>;`)
+- Undo only works immediately after an expansion completes
+- Check logs to see if undo state is being saved correctly
+
+### Debugging Tips
+
+To enable detailed logging for troubleshooting:
+
+```conf
+# In your .conf file
+CONFIG_LOG_MODE_MINIMAL=n
+CONFIG_LOG_BUFFER_SIZE=4096
+
+# Enable debug logging for specific modules
+CONFIG_ZMK_LOG_LEVEL_DBG=y
+CONFIG_LOG_DEFAULT_LEVEL=4
+```
+
+View logs using your keyboard's console output method (usually via USB serial connection).
 
 ## Getting it into Your ZMK Build
 

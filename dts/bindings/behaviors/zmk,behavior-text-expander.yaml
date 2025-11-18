@@ -17,6 +17,11 @@ properties:
     type: array
     required: false
     description: "A list of keycodes that will automatically trigger an expansion."
+  
+  ignore-keycodes:
+    type: array
+    required: false
+    description: "A list of keycodes (like Shift or Arrows) that will be ignored and will NOT reset the short code buffer."
 
   disable-preserve-trigger:
     type: boolean

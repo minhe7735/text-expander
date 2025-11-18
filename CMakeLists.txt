@@ -35,6 +35,14 @@ if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
       src/expansion_engine.c
       ${GENERATED_TRIE_C}
     )
+
+    if(CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_US)
+      zephyr_library_sources(src/layouts/us.c)
+    elseif(CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_FRENCH)
+      zephyr_library_sources(src/layouts/french.c)
+    elseif(CONFIG_ZMK_TEXT_EXPANDER_LAYOUT_GERMAN)
+      zephyr_library_sources(src/layouts/german.c)
+    endif()
     
     # Add the binary directory to the include paths so the generated header can be found.
     zephyr_library_include_directories(include ${CMAKE_CURRENT_BINARY_DIR})
