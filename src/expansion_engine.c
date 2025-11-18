@@ -67,16 +67,29 @@ static void clear_shift_if_active(struct expansion_work *exp_work) {
     }
 }
 
-void cancel_current_expansion(struct expansion_work *work_item) {
+void cancel_current_expansion(struct expansion_work *work_item, bool partial_undo) {
     if (k_work_cancel_delayable(&work_item->work) >= 0) {
-        LOG_INF("Cancelling current expansion work.");
         if (work_item->current_keycode > 0) {
             LOG_DBG("Releasing potentially stuck keycode: 0x%04X", work_item->current_keycode);
             send_and_flush_key_action(work_item->current_keycode, false);
         }
         clear_shift_if_active(work_item);
-        work_item->state = EXPANSION_STATE_IDLE;
-        work_item->current_keycode = 0;
+
+        if (partial_undo && work_item->characters_typed > 0) {
+            LOG_INF("Canceling and initiating partial undo of %d chars", work_item->characters_typed);
+            work_item->backspace_count = work_item->characters_typed;
+            work_item->expanded_text = "";
+            work_item->trigger_keycode_to_replay = 0;
+            work_item->text_index = 0;
+            work_item->literal_end_index = 0;
+            work_item->current_keycode = 0;
+            work_item->state = EXPANSION_STATE_START_BACKSPACE;
+            k_work_reschedule(&work_item->work, K_MSEC(1));
+        } else {
+            LOG_INF("Cancelling current expansion work (no undo).");
+            work_item->state = EXPANSION_STATE_IDLE;
+            work_item->current_keycode = 0;
+        }
     }
 }
 
@@ -304,6 +317,8 @@ static void handle_type_char_key_release(struct expansion_work *exp_work) {
        exp_work->text_index++;
     }
 
+    exp_work->characters_typed++;
+
     exp_work->state = (exp_work->literal_end_index > 0) ? EXPANSION_STATE_TYPE_LITERAL_CHAR : EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, K_MSEC(TYPING_DELAY / 2));
 }
@@ -363,6 +378,7 @@ static void handle_win_uni_type_numpad_release(struct expansion_work *exp_work) 
 static void handle_win_uni_release_alt(struct expansion_work *exp_work) {
     zmk_hid_unregister_mods(MOD_LALT);
     zmk_endpoints_send_report(HID_USAGE_KEY);
+    exp_work->characters_typed++;
     exp_work->state = EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, K_MSEC(TYPING_DELAY));
 }
@@ -401,6 +417,7 @@ static void handle_mac_uni_type_hex_release(struct expansion_work *exp_work) {
 static void handle_mac_uni_release_option(struct expansion_work *exp_work) {
     zmk_hid_unregister_mods(MOD_LALT);
     zmk_endpoints_send_report(HID_USAGE_KEY);
+    exp_work->characters_typed++;
     exp_work->state = EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, K_MSEC(TYPING_DELAY));
 }
@@ -459,6 +476,7 @@ static void handle_linux_uni_press_terminator(struct expansion_work *exp_work) {
 }
 static void handle_linux_uni_release_terminator(struct expansion_work *exp_work) {
     send_and_flush_key_action(HID_USAGE_KEY_KEYBOARD_RETURN_ENTER, false);
+    exp_work->characters_typed++;
     exp_work->state = EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, K_MSEC(TYPING_DELAY));
 }
@@ -492,9 +510,9 @@ static uint32_t get_hex_keycode(char hex_digit) {
     return 0;
 }
 
-int start_expansion(struct expansion_work *work_item, const char *expanded_text, uint8_t len_to_delete, uint16_t trigger_keycode) {
+int start_expansion(struct expansion_work *work_item, const char *expanded_text, uint16_t len_to_delete, uint16_t trigger_keycode) {
     LOG_INF("Starting expansion: text='%s', backspaces=%d, replay_keycode=0x%04X", expanded_text, len_to_delete, trigger_keycode);
-    cancel_current_expansion(work_item);
+    cancel_current_expansion(work_item, false);
 
     work_item->expanded_text = expanded_text;
     work_item->trigger_keycode_to_replay = trigger_keycode;
@@ -504,6 +522,7 @@ int start_expansion(struct expansion_work *work_item, const char *expanded_text,
     work_item->start_time_ms = k_uptime_get();
     work_item->shift_mod_active = false;
     work_item->current_keycode = 0;
+    work_item->characters_typed = 0;
 
     work_item->state = (work_item->backspace_count > 0) ? EXPANSION_STATE_START_BACKSPACE : EXPANSION_STATE_START_TYPING;
 

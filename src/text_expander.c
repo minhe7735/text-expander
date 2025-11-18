@@ -33,6 +33,20 @@ static const uint32_t auto_expand_keycodes[] = DT_INST_PROP_OR(0, auto_expand_ke
 static const uint32_t undo_keycodes[] = DT_INST_PROP_OR(0, undo_keycodes, {});
 #endif
 
+static uint16_t utf8_character_count(const char *str) {
+    if (!str) {
+        return 0;
+    }
+    uint16_t count = 0;
+    while (*str) {
+        if ((*str & 0xC0) != 0x80) {
+            count++;
+        }
+        str++;
+    }
+    return count;
+}
+
 struct text_expander_data expander_data;
 
 static void process_key_event(struct text_expander_key_event *ev);
@@ -102,7 +116,7 @@ static bool trigger_expansion(const char *short_code, enum expansion_context con
     }
 
     size_t short_len = strlen(short_code);
-    uint8_t len_to_delete = short_len + (context == EXPAND_FROM_AUTO_TRIGGER ? 1 : 0);
+    uint16_t len_to_delete = short_len + (context == EXPAND_FROM_AUTO_TRIGGER ? 1 : 0);
     const char *text_for_engine = expanded_ptr;
 
     if (strncmp(expanded_ptr, short_code, short_len) == 0) {
@@ -115,13 +129,14 @@ static bool trigger_expansion(const char *short_code, enum expansion_context con
 
     uint16_t keycode_to_replay = node->preserve_trigger ? trigger_keycode : NO_REPLAY_KEY;
 
-#if DT_INST_NODE_HAS_PROP(0, undo_keycodes)
+    #if DT_INST_NODE_HAS_PROP(0, undo_keycodes)
     strncpy(expander_data.last_short_code, short_code, MAX_SHORT_LEN - 1);
-    expander_data.last_expanded_text = expanded_ptr;
+    expander_data.last_expanded_text = text_for_engine; 
     expander_data.last_trigger_keycode = keycode_to_replay;
     expander_data.just_expanded = true;
-    LOG_DBG("Saved undo state. Last short: '%s', trigger: 0x%04X", expander_data.last_short_code, keycode_to_replay);
-#endif
+    LOG_DBG("Saved undo state. Last short: '%s', Last text: '%s', trigger: 0x%04X", 
+            expander_data.last_short_code, expander_data.last_expanded_text, keycode_to_replay);
+    #endif
 
     reset_current_short();
     LOG_INF("Passing text to engine. Text: \"%s\", backspaces: %d, replay_keycode: 0x%04X", text_for_engine, len_to_delete, keycode_to_replay);
@@ -148,6 +163,28 @@ static int text_expander_keycode_state_changed_listener(const zmk_event_t *eh) {
     }
 
     if (expander_data.expansion_work_item.state != EXPANSION_STATE_IDLE) {
+        
+        if (ev->state && keycode_in_array(ev->keycode, reset_keycodes, ARRAY_SIZE(reset_keycodes))) {
+            LOG_DBG("Reset key pressed, canceling in-progress expansion.");
+            cancel_current_expansion(&expander_data.expansion_work_item, false); // false = simple cancel
+            return ZMK_EV_EVENT_CAPTURED;
+        }
+
+        #if DT_INST_NODE_HAS_PROP(0, undo_keycodes)
+        if (ev->state && keycode_in_array(ev->keycode, undo_keycodes, ARRAY_SIZE(undo_keycodes))) {
+            
+            LOG_DBG("Undo key pressed during expansion, starting partial undo.");
+            
+            uint16_t partial_backspaces = expander_data.expansion_work_item.characters_typed;
+
+            const char* short_code_to_restore = expander_data.last_short_code;
+
+            start_expansion(&expander_data.expansion_work_item, short_code_to_restore, partial_backspaces, NO_REPLAY_KEY);
+            
+            return ZMK_EV_EVENT_CAPTURED;
+        }
+        #endif
+        
         LOG_DBG("Expansion in progress, bubbling event for keycode 0x%04X", ev->keycode);
         return ZMK_EV_EVENT_BUBBLE;
     }
@@ -206,10 +243,13 @@ static bool handle_undo(uint16_t keycode) {
         expander_data.just_expanded = false;
         if (keycode_in_array(keycode, undo_keycodes, ARRAY_SIZE(undo_keycodes))) {
             LOG_INF("Undo triggered. Restoring '%s'", expander_data.last_short_code);
-            uint8_t undo_backspaces = strlen(expander_data.last_expanded_text);
+            
+            uint16_t undo_backspaces = utf8_character_count(expander_data.last_expanded_text);
             if (expander_data.last_trigger_keycode != 0) {
                 undo_backspaces++;
             }
+            LOG_DBG("Undo will backspace %d characters", undo_backspaces);
+
             reset_current_short();
             start_expansion(&expander_data.expansion_work_item, expander_data.last_short_code, undo_backspaces, NO_REPLAY_KEY);
             return true;

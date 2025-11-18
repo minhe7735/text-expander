@@ -59,7 +59,7 @@ enum expansion_state {
 struct expansion_work {
   struct k_work_delayable work;
   const char *expanded_text;
-  uint8_t backspace_count;
+  uint16_t backspace_count;
   size_t text_index;
   int64_t start_time_ms;
   volatile enum expansion_state state;
@@ -72,10 +72,12 @@ struct expansion_work {
   uint32_t unicode_codepoint;
   char unicode_hex_buffer[9];
   uint8_t unicode_hex_index;
+  
+  uint16_t characters_typed;
 };
 
 void expansion_work_handler(struct k_work *work);
-int start_expansion(struct expansion_work *work_item, const char *expanded_text, uint8_t len_to_delete, uint16_t trigger_keycode);
-void cancel_current_expansion(struct expansion_work *work_item);
+int start_expansion(struct expansion_work *work_item, const char *expanded_text, uint16_t len_to_delete, uint16_t trigger_keycode);
+void cancel_current_expansion(struct expansion_work *work_item, bool partial_undo);
 
 #endif /* ZMK_EXPANSION_ENGINE_H */
