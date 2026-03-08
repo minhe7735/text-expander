@@ -14,5 +14,5 @@ int send_and_flush_key_action(uint32_t keycode, bool pressed) {
     }
     
     LOG_DBG("Flushing HID report for usage page 0x%02X", HID_USAGE_KEY);
-    return zmk_endpoints_send_report(HID_USAGE_KEY);
+    return zmk_endpoint_send_report(HID_USAGE_KEY);
 }

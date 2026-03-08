@@ -164,7 +164,7 @@ static void clear_shift_if_active(struct expansion_work *exp_work) {
     if (exp_work->shift_mod_active) {
         LOG_DBG("Clearing active shift modifier.");
         zmk_hid_unregister_mods(MOD_LSFT);
-        zmk_endpoints_send_report(HID_USAGE_KEY);
+        zmk_endpoint_send_report(HID_USAGE_KEY);
         exp_work->shift_mod_active = false;
     }
 }
@@ -501,7 +501,7 @@ static void win_start_unicode_typing(struct expansion_work *exp_work) {
 }
 static void handle_win_uni_press_alt(struct expansion_work *exp_work) {
     zmk_hid_register_mods(MOD_LALT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->state = EXPANSION_STATE_WIN_UNI_TYPE_NUMPAD_PRESS;
     k_work_reschedule(&exp_work->work, get_typing_delay());
 }
@@ -525,7 +525,7 @@ static void handle_win_uni_type_numpad_release(struct expansion_work *exp_work) 
 }
 static void handle_win_uni_release_alt(struct expansion_work *exp_work) {
     zmk_hid_unregister_mods(MOD_LALT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->characters_typed++;
     exp_work->state = EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, get_typing_delay());
@@ -540,7 +540,7 @@ static void macos_start_unicode_typing(struct expansion_work *exp_work) {
 }
 static void handle_mac_uni_press_option(struct expansion_work *exp_work) {
     zmk_hid_register_mods(MOD_LALT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->state = EXPANSION_STATE_MAC_UNI_TYPE_HEX_PRESS;
     k_work_reschedule(&exp_work->work, get_typing_delay());
 }
@@ -564,7 +564,7 @@ static void handle_mac_uni_type_hex_release(struct expansion_work *exp_work) {
 }
 static void handle_mac_uni_release_option(struct expansion_work *exp_work) {
     zmk_hid_unregister_mods(MOD_LALT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->characters_typed++;
     exp_work->state = EXPANSION_STATE_TYPE_CHAR_START;
     k_work_reschedule(&exp_work->work, get_typing_delay());
@@ -579,7 +579,7 @@ static void linux_start_unicode_typing(struct expansion_work *exp_work) {
 }
 static void handle_linux_uni_press_ctrl_shift(struct expansion_work *exp_work) {
     zmk_hid_register_mods(MOD_LCTL | MOD_LSFT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->state = EXPANSION_STATE_LINUX_UNI_PRESS_U;
     k_work_reschedule(&exp_work->work, get_typing_delay());
 }
@@ -595,7 +595,7 @@ static void handle_linux_uni_release_u(struct expansion_work *exp_work) {
 }
 static void handle_linux_uni_release_ctrl_shift(struct expansion_work *exp_work) {
     zmk_hid_unregister_mods(MOD_LCTL | MOD_LSFT);
-    zmk_endpoints_send_report(HID_USAGE_KEY);
+    zmk_endpoint_send_report(HID_USAGE_KEY);
     exp_work->state = EXPANSION_STATE_LINUX_UNI_TYPE_HEX_PRESS;
     k_work_reschedule(&exp_work->work, get_typing_delay());
 }
